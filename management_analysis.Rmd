@@ -4,11 +4,64 @@ author: "Jessica French"
 date: "`r Sys.Date()`"
 output: html_document
 ---
+# Description 
 
+# Set-up
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
 # read in libraries
 library(tidyverse)
+library(here)
+```
+
+```{r label = "read in data"}
+# Read in classification data. There are 5 csvs, one for each plan
+# create a plan column to make it easier to track after combing them in a later step. 
+sundarbans <- read_csv(here("../../Data/ci_data/Management_Plan_Classification - Sundarbans.csv")) |> 
+  mutate(plan = "sundarbans")
+
+kisite <- read_csv(here("../../Data/ci_data/Management_Plan_Classification - Kisite-Mpunguti.csv")) |> 
+  mutate(plan = "kisite")
+
+gladden <- read_csv(here("../../Data/ci_data/Management_Plan_Classification - gladden_spit_silk_cayes.csv")) |> 
+  mutate(plan = "gladden_spit")
+
+lorenzo <- read_csv(here("../../Data/ci_data/Management_Plan_Classification - San_Lorenzo.csv")) |> 
+  mutate(plan = "san_lorenzo")
+
+heard <- read_csv(here("../../Data/ci_data/Management_Plan_Classification - Hear_McDonalds.csv")) |> 
+  mutate(plan = "heard_mcdonalds")
+```
+
+```{r label = "combine csvs"}
+# create list of data frames.
+actions_vec <- list(sundarbans, kisite, gladden, lorenzo, heard)
+# combine csvs using row bind
+
+actions <- bind_rows(actions_vec) |> 
+  dplyr::select(-text, -summary, -notes)
+```
+
+# Plots
+
+```{r label = "histogram"}
+# create histogram to see the counts in each category across all plans
+# pivot actions wider so can use binaries as cateogries
+
+columns <- colnames(actions) # get column names
+columns_to_exclude <- c("plan") # set up for removing plan column 
+columns_filtered <- setdiff(columns, columns_to_exclude) # pivot longer. 
+
+actions_longer <- pivot_longer(actions, 
+                               cols = columns_filtered, 
+                               names_to = "binaries") |> 
+  filter(value == 1)
+
+
+ggplot(actions_longer, aes(x = fct_infreq(binaries))) +
+  geom_bar()
+
+
 ```
 
