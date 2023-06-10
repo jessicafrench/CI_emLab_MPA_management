@@ -1,0 +1,104 @@
+---
+title: "Getting started"
+author: "Jessica French"
+date: "`r Sys.Date()`"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r label = "read in packages", include=FALSE}
+library(tidyverse)
+library(janitor)
+library(DT)
+library(knitr)
+```
+
+```{r label = "set directories", include=FALSE}
+# set data directory
+datadir <- "/Users/jfrench/Documents/CI_MPA/Data"
+```
+
+```{r label = "read in data", include=FALSE}
+# Read in data from fig4 supplement
+fig4_supp <- read_csv(file.path(datadir, "Supp_Info_TableS4.csv"), skip = 1)
+
+# read in example climate change strategies
+clim_strat <- read_csv(file.path(datadir, "example-climate-strategies.csv"))
+```
+
+
+```{r label = "filter to climate action plans", include=FALSE}
+# filter to plans that have a detailed climate change specific actions plan. 
+clim_action_df <- fig4_supp |> 
+  clean_names() |> 
+  filter(criteria == "climate_plan" & value == 1) 
+
+# create vector of climate plan ids to use to filter example climate strategies
+clim_action_plans <- clim_action_df$plan_id
+
+# view the vector 
+clim_action_plans
+
+# create a data frame with the name and plan_id so that the plan_id can be joined back to other tables using the name clolumn. 
+name_plan_id <- clim_strat |> 
+  separate_rows(plan_id, sep = ",") |> 
+  group_by(plan_id) |> 
+  reframe(unique(name)) |> 
+  mutate(plan_id = as.numeric(plan_id)) |> 
+  rename("name" = "unique(name)")
+
+```
+
+
+
+## Names and source documents of plans that have detailed action plans and are in the example climate strategies spreadsheet. 
+
+```{r label = "Create list of plans", echo=FALSE}
+# create list of plans with id, name, and source
+# should be 36, not all of the climate action plans are represented in the example strategies table. 
+
+clim_action_plan_df <- clim_strat |> 
+  separate_rows(plan_id, sep = ",") |> # need to separate character strings that have multiple plan_id s listed. 
+  mutate(plan_id = as.numeric(plan_id)) |> # convert plan_id to numeric so I can sort and print without quotes. 
+  filter(plan_id %in% clim_action_plans) |> # filter to plans that were labeled as having a detailed climates change action plan. 
+  dplyr::select(plan_id, name, source) |> # select the name and source column to create the list of plans that we can pull from to do a deep dive. 
+  group_by(name) |> # create a group for each MPA name
+  reframe(unique(source)) |>  # create a row for each source associated with each name, this and the step above remove duplicate rows. 
+  rename("source" = "unique(source)") |> 
+  left_join(name_plan_id, by = "name")
+  
+
+
+#write_csv(clim_action_plan_df, "/Users/jfrench/Documents/CI_MPA/R/clim_action_plan_mpa.csv")
+
+```
+
+
+```{r label = "find plans that are not in the climate strategy examples", include=FALSE}
+# 
+clim_action_ids <- clim_action_plan_df$plan_id 
+  
+plans_no_action <- setdiff(clim_action_plans, clim_action_ids)
+
+plans_no_action
+```
+
+
+```{r label = "filter example climate strategies"}
+# filter the example climate strategies to plan ids that are in the cliamte action plan list. 
+
+clim_action_strat <- clim_strat |> 
+  filter(plan_id %in% clim_action_plans) |> 
+  dplyr::select(strat_id, plan_id, name, specifics, source) 
+
+clim_action_table <- datatable(clim_action_strat, filter = "top")
+
+write_csv(clim_action_strat, "/Users/jfrench/Documents/CI_MPA/R/clim_action_examples.csv")
+```
+
