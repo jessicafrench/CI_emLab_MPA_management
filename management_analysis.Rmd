@@ -15,7 +15,7 @@ library(tidyverse)
 library(here)
 ```
 
-```{r label = "read in data"}
+```{r label = "read in data", message=FALSE}
 # Read in classification data. There are 5 csvs, one for each plan
 # create a plan column to make it easier to track after combing them in a later step. 
 sundarbans <- read_csv(here("../../Data/ci_data/Management_Plan_Classification - Sundarbans.csv")) |> 
@@ -45,23 +45,135 @@ actions <- bind_rows(actions_vec) |>
 
 # Plots
 
-```{r label = "histogram"}
+```{r label = "histogram all"}
 # create histogram to see the counts in each category across all plans
-# pivot actions wider so can use binaries as cateogries
 
 columns <- colnames(actions) # get column names
 columns_to_exclude <- c("plan") # set up for removing plan column 
 columns_filtered <- setdiff(columns, columns_to_exclude) # pivot longer. 
 
+# pivot actions wider so can use binaries as cateogries
 actions_longer <- pivot_longer(actions, 
                                cols = columns_filtered, 
                                names_to = "binaries") |> 
   filter(value == 1)
 
-
+# create plot
 ggplot(actions_longer, aes(x = fct_infreq(binaries))) +
-  geom_bar()
+  geom_bar() +
+  ylim(0, 450) +
+  labs(x = "") +
+  geom_text(stat='count', aes(label=after_stat(count)), vjust=-1) +
+  theme(axis.text.x = element_text(angle = 45, 
+                                   vjust = 1, 
+                                   hjust = 1))
 
+```
+
+```{r label = "split histogram"}
+# split data into those with climate change specific action and those without.
+
+# Filtered to actions that are for CC
+actions_cc <- actions |> 
+  filter(direct == 1 | indirect == 1) |> 
+  pivot_longer(cols = columns_filtered, 
+               names_to = "binaries") |> 
+  filter(value == 1 & binaries != "direct" & binaries != "indirect") 
+  
+
+# Filtered to actions that were not specifically for CC
+actions_no_cc <- actions |> 
+  filter(direct == 0 & indirect == 0) |> 
+  pivot_longer(cols = columns_filtered, 
+               names_to = "binaries") |> 
+  filter(value == 1)
+
+# ggplot of category frequency in cc actions
+ggplot(actions_cc, aes(x = fct_infreq(binaries))) +
+  geom_bar() +
+  geom_text(stat='count', 
+            aes(label=after_stat(count)),
+            vjust=-1) +
+  ylim(0, 70) +
+  labs(title = "Frequency of Categories in CC Actions", 
+       x = "") +
+  theme(axis.text.x = element_text(angle = 45, 
+                                   vjust = 1, 
+                                   hjust = 1))
+
+# ggplot of category frequency in non-cc actions. 
+ggplot(actions_no_cc, aes(x = fct_infreq(binaries))) +
+  geom_bar() +
+  geom_text(stat='count', 
+            aes(label=after_stat(count)),
+            vjust=-1) +
+  ylim(0, 400) +
+  labs(title = "Frequency of Categories in non-CC Actions", 
+       x = "") +
+  theme(axis.text.x = element_text(angle = 45, 
+                                   vjust = 1, 
+                                   hjust = 1))
+```
+
+```{r label = "unique combinations of categorizations"}
+# Want to find all of the unique combinations of categorizations to get a sense of how the different categories occur together. 
+
+# use distinct to find the number of unique combinations. Will use this as a check on future operations. 
+unique_combinations <- actions |> 
+  dplyr::select(-plan) |> 
+  distinct()
+
+# count the number of times each combinations occurs
+count_combinations <- actions |> 
+  dplyr::select(-plan) |> 
+  group_by(across(everything())) |> 
+  summarise(count = n())
+```
+
+There are 201 unique combinations of categorizations. Lets use this as a base to see how the frequency changes with whether or not the action was specifically for climate change. 
+
+```{r label = "combos for cc", message=FALSE}
+
+# count the number of times each combination occurs for actions that were specifically for cc. 
+count_combinations_cc <- actions |> 
+  dplyr::select(-plan) |> 
+  filter(direct == 1 | indirect == 1) |> 
+  select(-direct, -indirect) |> 
+  group_by(across(everything())) |> 
+  summarise(count = n())
+```
+
+```{r label = "cc econ combos", message=FALSE}
+# see combinations that occur when the action is for cc and classified as economic. And count each one.
+count_combinations_cc_econ <- actions |> 
+  dplyr::select(-plan) |> 
+  filter(direct == 1 | indirect == 1 & economic == 1) |> 
+  select(-direct, -indirect, -economic) |> 
+  group_by(across(everything())) |> 
+  summarise(count = n())
+
+# to plot don't want to collapse the data frame and need to pivot longer
+
+count_combinations_cc_econ <- actions |> 
+  dplyr::select(-plan) |> 
+  filter(direct == 1 | indirect == 1 & economic == 1) |> 
+  select(-direct, -indirect, -economic) |> 
+  pivot_longer(cols = everything(), 
+               names_to = "binaries") |> 
+  filter(value == 1)
+
+# now can make a histogram 
+ggplot(count_combinations_cc_econ, aes(x = fct_infreq(binaries))) +
+  geom_bar() +
+  geom_text(stat='count', 
+            aes(label=after_stat(count)),
+            vjust=-1) +
+  ylim(0, 20) +
+  labs(title = "Frequency of Categories in cc and economic", 
+       x = "") +
+  theme(axis.text.x = element_text(angle = 45, 
+                                   vjust = 1, 
+                                   hjust = 1))
 
 ```
 
