@@ -1,21 +1,28 @@
 ---
-title: "Management Analysis"
+title: "Management Actions Preliminary Analysis"
 author: "Jessica French"
 date: "`r Sys.Date()`"
-output: html_document
+output:
+  word_document: default
 ---
 # Description 
 
+This document contains histograms showing the number and frequency of management classifications both overall and or actions that are for climate change. The data from the Google Sheet was read in and combined into one data frame. A column containing the plan each action belonged to was added. The data were then pivoted into long form and filtered to values of 1. This resulted in a data frame where each row represents a positive classification. 
+
+Bar charts were created to visualize the total number of categorizations in each category and the proportion of actions that each category applied to. These were further broken down into non-climate change actions and climate change actions. 
+
 # Set-up
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, tidy = TRUE, tidy.opts=list(width.cutoff=60))
+
 
 # read in libraries
 library(tidyverse)
 library(here)
+library(formatR)
 ```
 
-```{r label = "read in data", message=FALSE}
+```{r label = "read in data", message=FALSE, warning=FALSE}
 # Read in classification data. There are 5 csvs, one for each plan
 # create a plan column to make it easier to track after combing them in a later step. 
 sundarbans <- read_csv(here("../../Data/ci_data/Management_Plan_Classification - Sundarbans.csv")) |> 
@@ -34,19 +41,15 @@ heard <- read_csv(here("../../Data/ci_data/Management_Plan_Classification - Hear
   mutate(plan = "heard_mcdonalds")
 ```
 
-```{r label = "combine csvs"}
+```{r label = "combine csvs", message=FALSE, warning=FALSE}
 # create list of data frames.
 actions_vec <- list(sundarbans, kisite, gladden, lorenzo, heard)
 # combine csvs using row bind
 
 actions <- bind_rows(actions_vec) |> 
   dplyr::select(-text, -summary, -notes)
-```
 
-# Plots
-
-```{r label = "histogram all"}
-# create histogram to see the counts in each category across all plans
+# Create long form data so that histograms can be created 
 
 columns <- colnames(actions) # get column names
 columns_to_exclude <- c("plan") # set up for removing plan column 
@@ -58,64 +61,170 @@ actions_longer <- pivot_longer(actions,
                                names_to = "binaries") |> 
   filter(value == 1)
 
-# create plot
+```
+
+# Plots
+
+## Category plots
+These plots show the  total and proportion of categorizations across all actions. In other words the number and proportion of times categories were applied. 
+
+```{r label = "histogram all"}
+# create histogram to see the counts in each category across all plans
+
+# create plot of total counts
 ggplot(actions_longer, aes(x = fct_infreq(binaries))) +
   geom_bar() +
   ylim(0, 450) +
-  labs(x = "") +
-  geom_text(stat='count', aes(label=after_stat(count)), vjust=-1) +
+  labs(x = "", 
+       title = "Count of categorizations", 
+       caption = "Histogram showing the number of times each category was applied. Multiple categories could be apploed to each action.") +
+  theme_minimal() +
+  geom_text(stat='count', aes(label=after_stat(count)), 
+            vjust=-1,
+            size = 2) +
   theme(axis.text.x = element_text(angle = 45, 
                                    vjust = 1, 
-                                   hjust = 1))
+                                   hjust = 1), 
+        plot.caption = element_text(hjust = 0))
+
+
 
 ```
+```{r labels = "proportion histogram all"}
+# alter the above plot to show the proportion
+ggplot(actions_longer, aes(x = fct_infreq(binaries))) +
+  geom_bar() +
+  ylim(0, 450) +
+  labs(x = "", 
+       title = "Proportion of actions in each category", 
+       subtitle = "Total number of actions is 434", 
+       caption = "Histogram showing the proportion of actions categorized with each binary.") +
+  geom_text(stat = 'count', 
+            aes(label = paste0(round(after_stat(count)/nrow(actions) * 100, 1), "%")), 
+            vjust = -1, 
+            size = 2) +
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 45, 
+                                   vjust = 1, 
+                                   hjust = 1), 
+        plot.caption = element_text(hjust = 0))
+```
+
+```{r label = "proportion categorization plot"}
+# create plot of proportion of categorizations, uses that total number of categorizations rather than the number of actions to determine the proportion. 
+prop_table <- prop.table(table(actions_longer$binaries))
+prop_df <- data.frame(binaries = names(prop_table), proportion = prop_table)
+
+
+ggplot(prop_df, aes(x = reorder(binaries, -proportion.Freq), y = proportion.Freq)) +
+  geom_bar(stat = "identity") +
+  ylim(0, 0.20) +
+  labs(x = "", 
+       y = "Proportion", 
+       title = "Proportion of classifications in each category", 
+       subtitle = "Total number of classifications 2581",
+       caption = "Histogram showing the proportion of all classifications that fall into each category.") +
+  geom_text(aes(label = paste0(round(proportion.Freq * 100, 1), "%")),
+            vjust = -1, 
+            size = 2) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 35, 
+                                   vjust = 1, hjust = 1), 
+        plot.caption = element_text(hjust = 0))
+
+
+
+```
+
 
 ```{r label = "split histogram"}
 # split data into those with climate change specific action and those without.
 
 # Filtered to actions that are for CC
 actions_cc <- actions |> 
-  filter(direct == 1 | indirect == 1) |> 
-  pivot_longer(cols = columns_filtered, 
+  filter(direct == 1 | indirect == 1) 
+
+# pivot actions cc longer
+actions_cc_long <- pivot_longer(actions_cc, cols = columns_filtered, 
                names_to = "binaries") |> 
   filter(value == 1 & binaries != "direct" & binaries != "indirect") 
   
 
 # Filtered to actions that were not specifically for CC
 actions_no_cc <- actions |> 
-  filter(direct == 0 & indirect == 0) |> 
-  pivot_longer(cols = columns_filtered, 
+  filter(direct == 0 & indirect == 0) 
+
+actions_no_cc_long <- pivot_longer(actions_no_cc, cols = columns_filtered, 
                names_to = "binaries") |> 
   filter(value == 1)
 
 # ggplot of category frequency in cc actions
-ggplot(actions_cc, aes(x = fct_infreq(binaries))) +
+ggplot(actions_cc_long, aes(x = fct_infreq(binaries))) +
   geom_bar() +
   geom_text(stat='count', 
             aes(label=after_stat(count)),
-            vjust=-1) +
+            vjust=-1, 
+            size = 2) +
   ylim(0, 70) +
   labs(title = "Frequency of Categories in CC Actions", 
        x = "") +
+  theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, 
                                    vjust = 1, 
                                    hjust = 1))
 
 # ggplot of category frequency in non-cc actions. 
-ggplot(actions_no_cc, aes(x = fct_infreq(binaries))) +
+ggplot(actions_no_cc_long, aes(x = fct_infreq(binaries))) +
   geom_bar() +
   geom_text(stat='count', 
             aes(label=after_stat(count)),
-            vjust=-1) +
+            vjust=-1,
+            size = 2) +
   ylim(0, 400) +
   labs(title = "Frequency of Categories in non-CC Actions", 
        x = "") +
+  theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, 
                                    vjust = 1, 
                                    hjust = 1))
 ```
 
-```{r label = "unique combinations of categorizations"}
+```{r label = "cc and non-cc proportion plots"}
+
+# ggplot of category frequency in cc actions
+ggplot(actions_cc_long, aes(x = fct_infreq(binaries))) +
+  geom_bar() +
+  ylim(0, 70) +
+  labs(title = "Frequency of categries in actions for climate change", 
+       x = "") +
+  geom_text(stat = 'count',
+            aes(label = paste0(round(after_stat(count)/nrow(actions_cc) * 100, 1), "%")),
+            vjust=-1, 
+            size = 2) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, 
+                                   vjust = 1, 
+                                   hjust = 1))
+
+# ggplot of category frequency in non-cc actions. 
+ggplot(actions_no_cc_long, aes(x = fct_infreq(binaries))) +
+  geom_bar() +
+  geom_text(stat='count', 
+            aes(label = paste0(round(after_stat(count)/nrow(actions_no_cc) * 100, 1), "%")),
+            vjust=-1, 
+            size = 2) +
+  ylim(0, 375) +
+  labs(title = "Frequency of categories in actions not for climate change", 
+       x = "") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, 
+                                   vjust = 1, 
+                                   hjust = 1))
+```
+
+# Number of category combinations.
+
+```{r label = "unique combinations of categorizations", tidy=TRUE}
 # Want to find all of the unique combinations of categorizations to get a sense of how the different categories occur together. 
 
 # use distinct to find the number of unique combinations. Will use this as a check on future operations. 
@@ -167,13 +276,16 @@ ggplot(count_combinations_cc_econ, aes(x = fct_infreq(binaries))) +
   geom_bar() +
   geom_text(stat='count', 
             aes(label=after_stat(count)),
-            vjust=-1) +
+            vjust=-1,
+            size = 2) +
   ylim(0, 20) +
   labs(title = "Frequency of Categories in cc and economic", 
        x = "") +
+  theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, 
                                    vjust = 1, 
                                    hjust = 1))
 
 ```
+
 
